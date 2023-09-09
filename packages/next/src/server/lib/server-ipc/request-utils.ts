@@ -1,3 +1,4 @@
+import type { IncomingMessage } from 'http'
 import { PageNotFoundError } from '../../../shared/lib/utils'
 import { invokeRequest } from './invoke-request'
 
@@ -29,7 +30,8 @@ export const deserializeErr = (serializedErr: any) => {
 }
 
 export async function invokeIpcMethod({
-  fetchHostname = 'localhost',
+  fetchHostname = process.env.__NEXT_INCREMENTAL_CACHE_IPC_FETCH_HOSTNAME ||
+    'localhost',
   method,
   args,
   ipcPort,
@@ -42,15 +44,32 @@ export async function invokeIpcMethod({
   ipcKey?: string
 }): Promise<any> {
   if (ipcPort) {
-    const res = await invokeRequest(
-      `http://${fetchHostname}:${ipcPort}?key=${ipcKey}&method=${
+    const httpMethod =
+      process.env.__NEXT_INCREMENTAL_CACHE_IPC_HTTP_METHOD || 'GET'
+
+    let url: string
+    let requestBody: BodyInit | undefined
+    let headers: IncomingMessage['headers'] = {}
+
+    if (httpMethod === 'GET') {
+      url = `http://${fetchHostname}:${ipcPort}?key=${ipcKey}&method=${
         method as string
-      }&args=${encodeURIComponent(JSON.stringify(args))}`,
+      }&args=${encodeURIComponent(JSON.stringify(args))}`
+    } else {
+      url = `http://${fetchHostname}:${ipcPort}`
+      requestBody = JSON.stringify({ key: ipcKey, method, args })
+      headers = { 'Content-Type': 'application/json' }
+    }
+
+    const res = await invokeRequest(
+      url,
       {
-        method: 'GET',
-        headers: {},
-      }
+        method: httpMethod,
+        headers,
+      },
+      requestBody
     )
+
     const body = await res.text()
 
     if (body.startsWith('{') && body.endsWith('}')) {

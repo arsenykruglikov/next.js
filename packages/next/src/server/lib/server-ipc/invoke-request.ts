@@ -1,5 +1,5 @@
 import type { IncomingMessage } from 'http'
-import type { Readable } from 'stream'
+import { Readable } from 'stream'
 import { filterReqHeaders, ipcForbiddenHeaders } from './utils'
 
 export const invokeRequest = async (
@@ -9,7 +9,7 @@ export const invokeRequest = async (
     method: IncomingMessage['method']
     signal?: AbortSignal
   },
-  readableBody?: Readable | ReadableStream
+  readableBody?: Readable | ReadableStream | BodyInit
 ) => {
   const invokeHeaders = filterReqHeaders(
     {
@@ -30,7 +30,14 @@ export const invokeRequest = async (
     readableBody
       ? {
           body: readableBody as BodyInit,
-          duplex: 'half',
+          get duplex() {
+            if (
+              readableBody instanceof Readable ||
+              readableBody instanceof ReadableStream
+            ) {
+              return 'half'
+            }
+          },
         }
       : {}),
 
